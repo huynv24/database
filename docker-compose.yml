@@ -1,0 +1,79 @@
+version: "3.3"
+networks:
+  py-database:
+    driver: "bridge"
+services:
+  c-redis:
+    image: redis:latest
+    networks:
+      - py-database  
+    hostname: redis
+    restart: always    
+    ports:
+      - "${REDIS_PORT}:6379"    
+    volumes:
+      - ./data/redis:/data
+  c-mongodb:
+    image: mongo
+    hostname: mongodb
+    restart: always
+    ports:
+      - "${MONGO_PORT}:27017"
+    networks:
+      - py-database   
+    volumes:
+      - ./data/mongodb:/data/db
+  c-mysql:
+    build:
+      context: ./mysql
+    environment:
+      - MYSQL_DATABASE=${MYSQL_DATABASE}
+      - MYSQL_USER=${MYSQL_USER}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+    hostname: mysql
+    restart: always
+    ports:
+      - "${MYSQL_PORT}:3306"
+    networks:
+      - py-database 
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+      - ./mysql/conf.d:/etc/mysql/conf.d
+      - ./mysql/mysql.conf.d:/etc/mysql/mysql.conf.d           
+  c-elasticsearch:
+    build:
+      context: ./elasticsearch
+    container_name: c-elasticsearch
+    environment:
+      - node.name=elasticsearch
+      - cluster.name=datasearch
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      - cluster.initial_master_nodes=elasticsearch
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    #    hostname: elasticsearch
+    restart: always
+    networks:
+      - py-database 
+    volumes:
+      - ../data/elastic:/usr/share/elasticsearch/data
+    ports:
+      - "9200:9200"
+  c-kibana:
+    build:
+      context: ./kibabna
+    container_name: c-kibana
+    environment:
+      ELASTICSEARCH_HOSTS: http://c-elasticsearch:9200
+    #    hostname: kibana
+    restart: always
+    ports:
+      - "5601:5601"
+    networks:
+      - py-database 
+    depends_on:
+      - c-elasticsearch
